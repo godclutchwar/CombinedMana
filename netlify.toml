@@ -1,7 +1,7 @@
 [build]
   command = "npm run build"
   publish = "frontend/dist"
-  functions = "backend"
+  functions = "functions"
 
 [functions]
   node_bundler = "esbuild"
