@@ -10,17 +10,37 @@ let mockData = null;
 if (process.env.DATABASE_URL) {
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
+    ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
+    connectionTimeoutMillis: 5000,
+    idleTimeoutMillis: 30000,
+    max: 3
   });
 } else {
   console.log('No DATABASE_URL found. Using local data.json mock.');
   useMock = true;
 }
 
+const findDataJson = () => {
+  const lambda = process.env.LAMBDA_TASK_ROOT;
+  const candidates = [
+    path.join(__dirname, 'data.json'),
+    lambda && path.join(lambda, 'backend', 'data.json'),
+    lambda && path.join(lambda, 'functions', 'backend', 'data.json'),
+    lambda && path.join(lambda, 'data.json'),
+    path.join(process.cwd(), 'functions', 'backend', 'data.json'),
+    path.join(process.cwd(), 'backend', 'data.json'),
+  ].filter(Boolean);
+  for (const p of candidates) {
+    try { if (fs.existsSync(p)) return p; } catch {}
+  }
+  return candidates[0];
+};
+
 const loadMockData = () => {
   try {
-    const dataPath = path.join(__dirname, 'data.json');
+    const dataPath = findDataJson();
     if (!fs.existsSync(dataPath)) {
+        console.warn('data.json not found, using empty mock data');
         mockData = { site_content: [], categories: [], products: [], stock_levels: [] };
         return;
     }
@@ -34,7 +54,7 @@ const loadMockData = () => {
 
 const saveMockData = () => {
     try {
-        const dataPath = path.join(__dirname, 'data.json');
+        const dataPath = findDataJson();
         fs.writeFileSync(dataPath, JSON.stringify(mockData, null, 2), 'utf8');
     } catch (err) {
         console.error('Failed to save mock data:', err.message);
@@ -227,7 +247,7 @@ const initDb = async () => {
     
     if (count === 0) {
       console.log('Database empty or tables missing data. Seeding from data.json...');
-      const dataPath = path.join(__dirname, 'data.json');
+      const dataPath = findDataJson();
       if (fs.existsSync(dataPath)) {
         const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
         

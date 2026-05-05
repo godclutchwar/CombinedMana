@@ -3,8 +3,16 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { query } = require('./db');
-const { getStore } = require('@netlify/blobs');
+const { query, getMode, pool } = require('./db');
+
+// @netlify/blobs v0.1.x is ESM-only; guard against require() failure
+let getStore = () => null;
+try {
+  const blobs = require('@netlify/blobs');
+  if (blobs.getStore) getStore = blobs.getStore;
+} catch (e) {
+  console.warn('Netlify Blobs unavailable (image uploads will use local disk only):', e.message);
+}
 
 const app = express();
 const router = express.Router();
@@ -268,10 +276,10 @@ router.get('/uploads/:key', async (req, res, next) => {
 });
 
 router.get('/status', (req, res) => {
-  res.json({ 
-    mode: require('./db').getMode(),
+  res.json({
+    mode: getMode(),
     timestamp: new Date().toISOString(),
-    dbConnected: !!require('./db').pool || require('./db').getMode() === 'mock'
+    dbConnected: !!pool || getMode() === 'mock'
   });
 });
 
